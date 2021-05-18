@@ -11,7 +11,7 @@ type (
 	VoteAccountKey struct {
 		NodePubkey       string `json:"nodePubkey"`
 		VotePubkey       string `json:"votePubkey"`
-		validatorBalance int    `json:"lastVote"`
+		ValidatorBalance int    `json:"lastVote"`
 	}
 
 	GetVoteAccountsBalanceResponse struct {

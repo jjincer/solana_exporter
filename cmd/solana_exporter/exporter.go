@@ -81,7 +81,7 @@ func NewSolanaCollectorBalance(rpcAddr string) *solanaCollectorBalance {
 func (c *solanaCollectorBalance) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsBalanceResponse) {
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-			0, account.validatorBalance, account.NodePubkey)
+			0, account.ValidatorBalance, account.NodePubkey)
 	}
 }
 
