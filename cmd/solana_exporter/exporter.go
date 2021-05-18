@@ -33,8 +33,13 @@ type solanaCollector struct {
 	validatorActivatedStake *prometheus.Desc
 	validatorLastVote       *prometheus.Desc
 	validatorRootSlot       *prometheus.Desc
-	validatorBalance        *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
+}
+
+type solanaCollectorBalance struct {
+	rpcClient *rpc.RPCClient
+
+	validatorBalance *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -56,10 +61,6 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			"solana_validator_root_slot",
 			"Root slot per validator",
 			[]string{"pubkey", "nodekey"}, nil),
-		validatorBalance: prometheus.NewDesc(
-			"solana_validator_balance",
-			"Balance on identity per validator",
-			[]string{"pubkey", "nodekey"}, nil),
 		validatorDelinquent: prometheus.NewDesc(
 			"solana_validator_delinquent",
 			"Whether a validator is delinquent",
@@ -67,52 +68,78 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 	}
 }
 
-func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- c.totalValidatorsDesc
+func NewSolanaCollectorBalance(rpcAddr string) *solanaCollectorBalance {
+	return &solanaCollectorBalance{
+		rpcClient: rpc.NewRPCClient(rpcAddr),
+		validatorBalance: prometheus.NewDesc(
+			"solana_validator_balance",
+			"Balance on identity per validator",
+			[]string{"pubkey", "nodekey"}, nil),
+	}
 }
 
-func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
-	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
-		float64(len(response.Result.Delinquent)), "delinquent")
-	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
-		float64(len(response.Result.Current)), "current")
-
-	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
-		ch <- prometheus.MustNewConstMetric(c.validatorActivatedStake, prometheus.GaugeValue,
-			float64(account.ActivatedStake), account.VotePubkey, account.NodePubkey)
-		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
-			float64(account.LastVote), account.VotePubkey, account.NodePubkey)
-		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
-			float64(account.RootSlot), account.VotePubkey, account.NodePubkey)
-		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-			float64(account.IdentityBalance), account.VotePubkey, account.NodePubkey)
-	}
+func (c *solanaCollectorBalance) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsBalanceResponse) {
 	for _, account := range response.Result.Current {
-		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
-			0, account.VotePubkey, account.NodePubkey)
-	}
-	for _, account := range response.Result.Delinquent {
-		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
-			1, account.VotePubkey, account.NodePubkey)
+		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+			0, account.validatorBalance, account.NodePubkey)
 	}
 }
 
-func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
+func (c *solanaCollectorBalance) Collect(ch chan<- prometheus.Metric) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
-	accs, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentRecent)
+	accs, err := c.rpcClient.GetVoteAccountsBalance(ctx, rpc.CommitmentRecent)
 	if err != nil {
-		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
-		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
 	} else {
 		c.mustEmitMetrics(ch, accs)
 	}
 }
+
+// func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
+// 	ch <- c.totalValidatorsDesc
+// }
+
+// func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsResponse) {
+// 	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
+// 		float64(len(response.Result.Delinquent)), "delinquent")
+// 	ch <- prometheus.MustNewConstMetric(c.totalValidatorsDesc, prometheus.GaugeValue,
+// 		float64(len(response.Result.Current)), "current")
+
+// 	for _, account := range append(response.Result.Current, response.Result.Delinquent...) {
+// 		ch <- prometheus.MustNewConstMetric(c.validatorActivatedStake, prometheus.GaugeValue,
+// 			float64(account.ActivatedStake), account.VotePubkey, account.NodePubkey)
+// 		ch <- prometheus.MustNewConstMetric(c.validatorLastVote, prometheus.GaugeValue,
+// 			float64(account.LastVote), account.VotePubkey, account.NodePubkey)
+// 		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
+// 			float64(account.RootSlot), account.VotePubkey, account.NodePubkey)
+// 	}
+// 	for _, account := range response.Result.Current {
+// 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
+// 			0, account.VotePubkey, account.NodePubkey)
+// 	}
+// 	for _, account := range response.Result.Delinquent {
+// 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
+// 			1, account.VotePubkey, account.NodePubkey)
+// 	}
+// }
+
+// func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
+// 	defer cancel()
+
+// 	accs, err := c.rpcClient.GetVoteAccounts(ctx, rpc.CommitmentRecent)
+// 	if err != nil {
+// 		ch <- prometheus.NewInvalidMetric(c.totalValidatorsDesc, err)
+// 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
+// 		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
+// 		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
+// 		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
+// 	} else {
+// 		c.mustEmitMetrics(ch, accs)
+// 	}
+// }
 
 func main() {
 	flag.Parse()
@@ -123,7 +150,7 @@ func main() {
 
 	collector := NewSolanaCollector(*rpcAddr)
 
-	go collector.WatchSlots()
+	// go collector.WatchSlots()
 
 	prometheus.MustRegister(collector)
 	http.Handle("/metrics", promhttp.Handler())

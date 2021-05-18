@@ -47,6 +47,5 @@ func (c *RPCClient) GetVoteAccounts(ctx context.Context, commitment Commitment) 
 	if resp.Error.Code != 0 {
 		return nil, fmt.Errorf("RPC error: %d %v", resp.Error.Code, resp.Error.Message)
 	}
-
 	return &resp, nil
 }
