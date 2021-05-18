@@ -39,7 +39,8 @@ type solanaCollector struct {
 type solanaCollectorBalance struct {
 	rpcClient *rpc.RPCClient
 
-	validatorBalance *prometheus.Desc
+	totalValidatorsDesc *prometheus.Desc
+	validatorBalance    *prometheus.Desc
 }
 
 func NewSolanaCollector(rpcAddr string) *solanaCollector {
@@ -67,10 +68,17 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 			[]string{"pubkey", "nodekey"}, nil),
 	}
 }
+func (c *solanaCollectorBalance) Describe(ch chan<- *prometheus.Desc) {
+	ch <- c.totalValidatorsDesc
+}
 
 func NewSolanaCollectorBalance(rpcAddr string) *solanaCollectorBalance {
 	return &solanaCollectorBalance{
 		rpcClient: rpc.NewRPCClient(rpcAddr),
+		totalValidatorsDesc: prometheus.NewDesc(
+			"solana_active_validators",
+			"Total number of active validators by state",
+			[]string{"state"}, nil),
 		validatorBalance: prometheus.NewDesc(
 			"solana_validator_balance",
 			"Balance on identity per validator",
@@ -81,7 +89,7 @@ func NewSolanaCollectorBalance(rpcAddr string) *solanaCollectorBalance {
 func (c *solanaCollectorBalance) mustEmitMetrics(ch chan<- prometheus.Metric, response *rpc.GetVoteAccountsBalanceResponse) {
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
-			0, account.ValidatorBalance, account.NodePubkey)
+			float64(account.ValidatorBalance), account.NodePubkey)
 	}
 }
 
@@ -148,7 +156,7 @@ func main() {
 		klog.Fatal("Please specify -rpcURI")
 	}
 
-	collector := NewSolanaCollector(*rpcAddr)
+	collector := NewSolanaCollectorBalance(*rpcAddr)
 
 	// go collector.WatchSlots()
 
