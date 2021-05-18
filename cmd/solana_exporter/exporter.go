@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/certusone/solana_exporter/pkg/rpc"
+	"github.com/jjincer/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
