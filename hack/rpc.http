@@ -107,3 +107,18 @@ Content-Type: application/json
     10
   ]
 }
+
+###
+
+POST https://tds-rpc.certus.one
+Content-Type: application/json
+
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "getBalance",
+  "params": [
+    "2xqBTHaRDXJewqYgb4agCLcV7bLj1xuj7yDbR6KXYs99"
+    
+  ]
+}

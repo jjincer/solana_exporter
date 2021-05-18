@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"net/http"
+	"time"
+
 	"github.com/certusone/solana_exporter/pkg/rpc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"net/http"
-	"time"
 
 	"k8s.io/klog/v2"
 )
@@ -32,6 +33,7 @@ type solanaCollector struct {
 	validatorActivatedStake *prometheus.Desc
 	validatorLastVote       *prometheus.Desc
 	validatorRootSlot       *prometheus.Desc
+	validatorBalance        *prometheus.Desc
 	validatorDelinquent     *prometheus.Desc
 }
 
@@ -53,6 +55,10 @@ func NewSolanaCollector(rpcAddr string) *solanaCollector {
 		validatorRootSlot: prometheus.NewDesc(
 			"solana_validator_root_slot",
 			"Root slot per validator",
+			[]string{"pubkey", "nodekey"}, nil),
+		validatorBalance: prometheus.NewDesc(
+			"solana_validator_balance",
+			"Balance on identity per validator",
 			[]string{"pubkey", "nodekey"}, nil),
 		validatorDelinquent: prometheus.NewDesc(
 			"solana_validator_delinquent",
@@ -78,6 +84,8 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 			float64(account.LastVote), account.VotePubkey, account.NodePubkey)
 		ch <- prometheus.MustNewConstMetric(c.validatorRootSlot, prometheus.GaugeValue,
 			float64(account.RootSlot), account.VotePubkey, account.NodePubkey)
+		ch <- prometheus.MustNewConstMetric(c.validatorBalance, prometheus.GaugeValue,
+			float64(account.IdentityBalance), account.VotePubkey, account.NodePubkey)
 	}
 	for _, account := range response.Result.Current {
 		ch <- prometheus.MustNewConstMetric(c.validatorDelinquent, prometheus.GaugeValue,
@@ -99,6 +107,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.NewInvalidMetric(c.validatorActivatedStake, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorLastVote, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorRootSlot, err)
+		ch <- prometheus.NewInvalidMetric(c.validatorBalance, err)
 		ch <- prometheus.NewInvalidMetric(c.validatorDelinquent, err)
 	} else {
 		c.mustEmitMetrics(ch, accs)

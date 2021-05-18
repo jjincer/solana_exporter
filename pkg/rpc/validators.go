@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	"k8s.io/klog/v2"
 )
 
@@ -16,7 +17,8 @@ type (
 		LastVote         int     `json:"lastVote"`
 		NodePubkey       string  `json:"nodePubkey"`
 		RootSlot         int     `json:"rootSlot"`
-		VotePubkey       string  `json:"votePubkey"`
+		IdentityBalance  int
+		VotePubkey       string `json:"votePubkey"`
 	}
 
 	GetVoteAccountsResponse struct {
